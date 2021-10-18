@@ -1,5 +1,19 @@
-use serialport::{available_ports, SerialPortType};
 
+use serde::{Deserialize, Serialize};
+use serialport::{available_ports, SerialPortType};
+use wmi::{COMLibrary, WMIConnection, WMIError};
+
+#[cfg(windows)]
+#[allow(non_camel_case_types)]
+#[allow(non_snake_case)]
+#[derive(Serialize, Deserialize, Debug)]
+struct Win32_POTSModem {
+    Name: String,
+    STATUS: String,
+    AttachedTo: String,
+}
+
+#[cfg(any(windows, unix))]
 fn list_com_ports() {
     match available_ports() {
         Ok(ports) => {
@@ -45,6 +59,39 @@ fn list_com_ports() {
         }
     }
 }
+
+#[cfg(windows)]
+fn get_modem_ports_and_return_vec_struct() -> Result<Vec<Win32_POTSModem>, WMIError> {
+    // Creating new COM Port
+    let com_con = COMLibrary::new()?;
+    // Create new WMI Connection using COM Port
+    let wmi_con = WMIConnection::new(com_con.into())?;
+
+    // let modem_ports: Vec<Win32_POTSModem> = wmi_con.query()?;
+
+    let modem_ports: Vec<Win32_POTSModem> = match wmi_con.query() {
+        Ok(modem_ports) => modem_ports,
+        Err(e) => {
+            return Err(e);
+        }
+    };
+    Ok(modem_ports)
+}
+
 fn main() {
     list_com_ports();
+
+    match get_modem_ports_and_return_vec_struct() {
+        Ok(modem_ports) => {
+            for port in &modem_ports {
+                println!("{:#?}", port);
+            }
+            // println!("{}", modem_ports[0].Name);
+            // println!("{}", modem_ports[0].STATUS);
+            // println!("{}", modem_ports[0].AttachedTo);
+        }
+        Err(e) => {
+            eprintln!("Error: {}", e);
+        }
+    };
 }
