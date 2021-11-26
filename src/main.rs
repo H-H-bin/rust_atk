@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
 use serialport::{available_ports, DataBits, SerialPortType, StopBits};
 use std::io::{self, Write};
+use std::thread;
 use std::time::Duration;
 use wmi::{COMLibrary, WMIConnection, WMIError};
 
+use chrono::{DateTime, Utc};
 use std::borrow::Cow::{self, Borrowed, Owned};
 
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
@@ -225,6 +227,8 @@ fn main() {
 
     rl.helper_mut().expect("No helper").colored_prompt = format!("\x1b[1;32m{}❯\x1b[0m", port_name);
     loop {
+        let now: DateTime<Utc> = Utc::now();
+        println!("{:?}", now);
         let readline = rl.readline(format!("{}❯", port_name).as_str());
         match readline {
             Ok(line) => {
@@ -238,8 +242,9 @@ fn main() {
                     Err(e) => eprintln!("{:?}", e),
                 }
 
+                thread::sleep(Duration::from_millis(10));
                 //4. Read data
-                let mut serial_buf: Vec<u8> = vec![0; 1000];
+                let mut serial_buf: Vec<u8> = vec![0; 4096];
                 match port.read(serial_buf.as_mut_slice()) {
                     Ok(t) => io::stdout().write_all(&serial_buf[..t]).unwrap(),
                     Err(ref e) if e.kind() == io::ErrorKind::TimedOut => (),
