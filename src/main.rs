@@ -1,3 +1,4 @@
+use serde::de::value::UnitDeserializer;
 use serde::{Deserialize, Serialize};
 use serialport::{available_ports, DataBits, SerialPortType, StopBits};
 use std::io::{self, Write};
@@ -9,7 +10,6 @@ use chrono::{DateTime, Utc};
 use std::borrow::Cow::{self, Borrowed, Owned};
 
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
-use rustyline::config::OutputStreamType;
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
 use rustyline::hint::{Hinter, HistoryHinter};
@@ -102,8 +102,8 @@ fn list_com_ports() {
         Ok(ports) => {
             match ports.len() {
                 0 => println!("No ports found."),
-                1 => println!("Found 1 port:"),
-                n => println!("Found {} ports:", n),
+                1 => println!("Found 1 serial port:"),
+                n => println!("Found {} serial ports:", n),
             };
             for p in ports {
                 println!("  {}", p.port_name);
@@ -143,14 +143,13 @@ fn list_com_ports() {
     }
 }
 
+
 #[cfg(windows)]
-fn get_modem_ports_and_return_vec_struct() -> Result<Vec<Win32_POTSModem>, WMIError> {
+fn get_modem_ports() -> Result<Vec<Win32_POTSModem>, WMIError> {
     // Creating new COM Port
     let com_con = COMLibrary::new()?;
     // Create new WMI Connection using COM Port
     let wmi_con = WMIConnection::new(com_con.into())?;
-
-    // let modem_ports: Vec<Win32_POTSModem> = wmi_con.query()?;
 
     let modem_ports: Vec<Win32_POTSModem> = match wmi_con.query() {
         Ok(modem_ports) => modem_ports,
@@ -161,28 +160,13 @@ fn get_modem_ports_and_return_vec_struct() -> Result<Vec<Win32_POTSModem>, WMIEr
     Ok(modem_ports)
 }
 
-fn main() {
+fn main() -> Result<(), ReadlineError> {
     list_com_ports();
-
-    match get_modem_ports_and_return_vec_struct() {
-        Ok(modem_ports) => {
-            for port in &modem_ports {
-                println!("{:#?}", port);
-            }
-            // println!("{}", modem_ports[0].Name);
-            // println!("{}", modem_ports[0].STATUS);
-            // println!("{}", modem_ports[0].AttachedTo);
-        }
-        Err(e) => {
-            eprintln!("Error: {}", e);
-        }
-    };
 
     // 1. Get port name
     //TODO: if there only one port, then just open it, if there more then one port,
     //      pop up for user to chose one.
-
-    let modem_port = get_modem_ports_and_return_vec_struct().unwrap();
+    let modem_port = get_modem_ports().unwrap();
     let port_name = &modem_port[0].AttachedTo;
     let baud_rate = 115200;
 
@@ -207,7 +191,6 @@ fn main() {
         .history_ignore_space(true)
         .completion_type(CompletionType::List)
         .edit_mode(EditMode::Emacs)
-        .output_stream(OutputStreamType::Stdout)
         .build();
     let h = MyHelper {
         completer: FilenameCompleter::new(),
@@ -216,7 +199,7 @@ fn main() {
         colored_prompt: "".to_owned(),
         validator: MatchingBracketValidator::new(),
     };
-    let mut rl = Editor::with_config(config);
+    let mut rl = Editor::with_config(config)?;
     rl.set_helper(Some(h));
     rl.bind_sequence(KeyEvent::alt('n'), Cmd::HistorySearchForward);
     rl.bind_sequence(KeyEvent::alt('r'), Cmd::HistorySearchBackward);
@@ -225,11 +208,11 @@ fn main() {
         println!("No previous history.");
     }
 
-    rl.helper_mut().expect("No helper").colored_prompt = format!("\x1b[1;32m{}❯\x1b[0m", port_name);
+    rl.helper_mut().expect("No helper").colored_prompt = format!("{} \x1b[1;32m{}❯\x1b[0m", Utc::now(), port_name);
     loop {
-        let now: DateTime<Utc> = Utc::now();
-        println!("{:?}", now);
-        let readline = rl.readline(format!("{}❯", port_name).as_str());
+        // let now: DateTime<Utc> = Utc::now();
+        // println!("{:?}", now);
+        let readline = rl.readline(format!("{} {}❯", Utc::now(), port_name).as_str());
         match readline {
             Ok(line) => {
                 let line = line + "\r";
@@ -265,5 +248,5 @@ fn main() {
             }
         }
     }
-    rl.save_history("history.txt").unwrap();
+    rl.save_history("history.txt")
 }
