@@ -208,11 +208,10 @@ fn main() -> Result<(), ReadlineError> {
         println!("No previous history.");
     }
 
-    rl.helper_mut().expect("No helper").colored_prompt = format!("{} \x1b[1;32m{}❯\x1b[0m", Utc::now(), port_name);
     loop {
-        // let now: DateTime<Utc> = Utc::now();
-        // println!("{:?}", now);
-        let readline = rl.readline(format!("{} {}❯", Utc::now(), port_name).as_str());
+        let now: DateTime<Utc> = Utc::now();
+        rl.helper_mut().expect("No helper").colored_prompt = format!("{} \x1b[1;32m{}❯\x1b[0m", now.format("%Y-%m-%d %H:%M:%S"), port_name);
+        let readline = rl.readline(format!("{} {}❯", now.format("%Y-%m-%d %H:%M:%S"), port_name).as_str());
         match readline {
             Ok(line) => {
                 let line = line + "\r";
